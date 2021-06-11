@@ -1,0 +1,858 @@
+<html>
+<head>
+ <meta charset="UTF-8">
+<title>Fox Chase Cancer Center</title>
+
+<link rel="stylesheet" type="text/css" media="all" href="css/userguide.css">
+<link rel="stylesheet" href="css/bootstrap.min.css">
+<link href="css/easy-autocomplete.min.css" rel="stylesheet" type="text/css">
+
+<style>
+#codelist th {
+	padding-top: 12px;
+	padding-bottom: 12px;
+	text-align: left;
+}
+</style>
+
+<script src="js/jquery-1.11.2.min.js"></script>
+<script src="js/jquery.easy-autocomplete.min.js" type="text/javascript" ></script>
+
+<!--
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+-->
+<script type="text/javascript" src="js/mootools-yui-compressed.js"></script>
+<script type="text/javascript" src="js/jquery.csv/src/jquery.csv.js"></script>
+
+<script type="text/javascript">
+
+/** updated on : 01/20/2021  */
+/** updated by Brian on : 05/19/2021  */
+
+// ************** declaring file names in globaly
+var cosine_file = "code_vectors_file.csv";			//Format: code, code with dot, vector values, code name
+var pmi_file = "code_pmi.csv";						//Format: code, neighbor code, PMI value, neighbor code, PMI value, ...
+var code_description_file = "code_index.csv";		//Format: code, code with dot, code name
+var tableTag = "codelist";
+var vectorSize = 200;    							// column size of each row in cosine_file file
+
+var DATA_cosine = "";
+
+
+
+
+var cosine_code = "";
+var cosine_codevector = "";
+var cosine_codeDescription = "";
+
+var cosine_row_num = 0;
+
+
+
+function vecDotProduct(vecA, vecB) {
+	var product = 0;
+	for (var i = 0; i < vecA.length; i++) {
+		product += vecA[i] * vecB[i];
+	}
+	return product;
+}
+
+function vecMagnitude(vec) {
+	var sum = 0;
+	for (var i = 0; i < vec.length; i++) {
+		sum += vec[i] * vec[i];
+	}
+	return Math.sqrt(sum);
+}
+
+function cosineSimilarity(vecA, vecB) {
+	return vecDotProduct(vecA, vecB) / (vecMagnitude(vecA) * vecMagnitude(vecB));
+}
+
+
+
+function make_vector_norm(cosine_codevector) {
+	for( var j=0; j< cosine_codevector.length; j++){
+	    var vecA = cosine_codevector[j];
+		
+		var getVecNormValue = vecMagnitude(vecA) ;
+		for (var i = 0; i < vecA.length; i++) {
+			vecA[i] = vecA[i]/getVecNormValue;
+		}
+		cosine_codevector[j] = vecA;
+	}		
+	return cosine_codevector;
+}
+
+		
+$(document).ready(function() {
+   "use strict";
+    $.ajax({
+        type: "GET",
+        url: cosine_file,
+        dataType: "text",
+        success: function(data) {
+			processData(  $.csv.toArrays(data) );
+
+		}
+    }
+	
+	);
+});
+
+
+function preprocessDescription(string) {
+	return string.replace("b ", "");;
+
+}
+
+function processData(file_data) {
+
+	DATA_cosine= file_data;
+	console.log( DATA_cosine.length );
+	
+	cosine_row_num  = DATA_cosine.length;
+	
+	cosine_code = new Array(cosine_row_num);
+	cosine_codevector = new Array(cosine_row_num);
+	cosine_codeDescription = new Array (cosine_row_num);
+	cosine_icd_code = new Array (cosine_row_num);
+	
+
+
+	for (var i = 0; i < cosine_row_num ; i++) {
+	  cosine_codevector[i] = new Array(vectorSize);
+	}
+		
+	// *************************** inserting data into variables
+	for (var j = 0; j < cosine_row_num ; j++) {
+		var lineValue = DATA_cosine[j];
+		
+		cosine_code[j] = lineValue[0];
+		cosine_icd_code[j] = lineValue[1];
+		if(cosine_icd_code[j]==""){
+			cosine_icd_code[j]= lineValue[0];   // taking the original code, if icd code is not found
+		}
+		
+		var last_index_of_row = lineValue.length - 1;
+		cosine_codeDescription[j] = lineValue [ last_index_of_row ].replace("//", "");
+		cosine_codeDescription[j] = preprocessDescription( cosine_codeDescription[j] );
+		
+		for (var i = 0 ; i < vectorSize ; i++) {
+		  cosine_codevector[j][i] = lineValue[ i+ 2 ] ;    // << First two columns is used for code and icdcode
+		}
+	}
+	
+	
+	cosine_codevector = make_vector_norm(cosine_codevector);
+	//for (var i = 0; i < 5 ; i++) {
+	//  console.log( cosine_codevector[11449][i] );
+	//}
+	
+	
+	
+	
+	document.getElementById('data_loading_message').innerHTML = "Data is loaded. Start your searching.";
+	// ****************************************************	
+}
+
+function loadCosineSimilarityData(){
+
+	var table= document.getElementById( tableTag );
+	
+	var givenCode = document.getElementById("codevalue").value;
+	var n = givenCode.indexOf("-");          // Deleting code description from Textfield
+	if (n>0)
+		givenCode = givenCode.slice(0, n);
+	
+		
+	var codeToShow = document.getElementById("listItems").value;
+	var index = -1;
+			
+	// *************************** inserting data into variables
+	for (var j = 0; j < cosine_row_num ; j++) {
+			if ( cosine_code[j] == givenCode){
+				index = j;		
+				break;
+			}		
+	}
+	// ****************************************************
+	if( index ==-1){
+		document.getElementById('tablecontent').innerHTML = "";	
+		document.getElementById('givenCodeDescription').innerHTML = "";
+		alert("Sorry, the given code is not in our dataset. Please, try again");
+		return;
+	}
+		
+	var cosineSimilarityList = [];	
+	// **************************  Calculating cosineSimilarity
+	for (var j= 0; j<cosine_row_num; j++){
+		//if ( j== 11449)
+		//	console.log (vecDotProduct(cosine_codevector[j], cosine_codevector[index]) );
+			
+		 cosineSimilarityList.push({
+			Column1: cosine_code[j],
+			Column2: vecDotProduct(cosine_codevector[j], cosine_codevector[index]),
+			Column3: cosine_codeDescription[j],
+			Column4: cosine_icd_code[j].substring(2) //			// two character in prefix, i.e. "p_"
+		});
+		
+	}
+	// ***************************  Sorting values
+	var sort_by = function(field, reverse, primer){
+	   var key = primer ?
+		   function(x) {return primer(x[field])} :
+		   function(x) {return x[field]};
+
+	   reverse = !reverse ? 1 : -1;
+
+	   return function (a, b) {
+		   return a = key(a), b = key(b), reverse * ((a > b) - (b > a));
+		 }
+	}
+	// Sort by high to low
+	cosineSimilarityList.sort(sort_by('Column2', true, parseFloat));
+	
+	var counter1 =0;
+	var counter2 =0;
+	var counter3 =0;
+	
+	var column1 = new Array(codeToShow);	// initializing table column values
+	var column2 = new Array(codeToShow);
+	var column3 = new Array(codeToShow);
+	var column4 = new Array(codeToShow);
+	var column5 = new Array(codeToShow);
+	var column6 = new Array(codeToShow);
+	
+	var column7 = new Array(codeToShow);
+	var column8 = new Array(codeToShow);
+	var column9 = new Array(codeToShow);
+	
+	var icd_column1 = new Array(codeToShow);
+	var icd_column2 = new Array(codeToShow);
+	var icd_column3 = new Array(codeToShow);
+	
+	for(var i=0; i< codeToShow; i++){
+		column1[i] = "";
+		column2[i] = "";
+		column3[i] = "No more data";
+		column4[i] = "";
+		column5[i] = "";
+		column6[i] = "No more data";
+		column7[i] = "";
+		column8[i] = "";
+		column9[i] = "No more data";
+		
+		icd_column1[i] ="";
+		icd_column2[i] ="";
+		icd_column3[i] ="";
+	}
+	
+	for (var j=1 ; j< cosine_row_num ; j++){ // Ignoring first. Because, given code vs given code Cosine Similarity is high
+		var simimilarCode = cosineSimilarityList[j].Column1;
+		if (counter1 >= codeToShow && counter2 >= codeToShow && counter3 >= codeToShow)
+			break;
+		
+		if( simimilarCode.startsWith("d_") && counter1 < codeToShow){
+			column1[counter1]= simimilarCode;	
+			column2[counter1]= cosineSimilarityList[j].Column2.toFixed(4);  // taking first three digits
+			column3[counter1]= cosineSimilarityList[j].Column3;
+			icd_column1[counter1] = cosineSimilarityList[j].Column4;	
+			counter1++;
+		}
+		else if(simimilarCode.startsWith("p_") && counter2 < codeToShow ){
+			column4[counter2]= simimilarCode;
+			column5[counter2]= cosineSimilarityList[j].Column2.toFixed(3);
+			column6[counter2]= cosineSimilarityList[j].Column3;
+			icd_column2[counter2] = cosineSimilarityList[j].Column4;
+			counter2++;
+		}
+		else if (simimilarCode.startsWith("h_") && counter3 < codeToShow) {
+			column7[counter3]= simimilarCode;	
+			column8[counter3]= cosineSimilarityList[j].Column2.toFixed(3);
+			column9[counter3]= cosineSimilarityList[j].Column3;
+			icd_column3[counter3] = cosineSimilarityList[j].Column4;
+			counter3++;
+		}
+	}
+		
+	var outputStringRow = "	<tr bgcolor='#80dd80'> <th style='width: 80px;'>&nbsp;Code&nbsp;</th> <th style='width: 80px;'>&nbsp;ICD-9</br>&nbsp;Code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;Word2vec&nbsp;</br>&nbsp;Cosine&nbsp;</br>&nbsp;Similarity&nbsp;</th> <th style='width: 230px;' bgcolor='#80dd80' >&nbsp;Diagnosis Code Description</th> <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th>  <th style='width: 80px;' >&nbsp;Code&nbsp;</th> <th style='width: 80px;'>&nbsp;ICD-9</br>&nbsp;Code&nbsp;</th> <th style='width: 60px;' >&nbsp;Word2vec&nbsp;</br>&nbsp;Cosine&nbsp;</br>&nbsp;wimilarity&nbsp;</th><th style='width: 230px;' >&nbsp;Procedure Code Description</th> <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th> <th style='width: 80px;' bgcolor='#80dd80'>&nbsp;Code&nbsp;</th> <th style='width: 80px;'>&nbsp;HCPCS</br>&nbsp;Code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;Word2vec&nbsp;</br>&nbsp;Cosine&nbsp;</br>&nbsp;Similarity&nbsp;</th><th style='width: 230px;' bgcolor='#80dd80' >&nbsp;HCPCS Code Description</th></tr>";
+	for (var j=0 ; j< codeToShow ; j++){
+		outputStringRow= outputStringRow+ "<tr style='outline: thin solid'>"+ "<td  bgcolor='#eeeeee'>&nbsp;"+ column1[j] +"&nbsp;</td>" + "<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column1[j] +"</td>"+"<td  bgcolor='#eeeeee'>&nbsp;"+ column2[j] +"</td>"+"<td  bgcolor='#eeeeee'>&nbsp;"+ column3[j] +"&nbsp;</td>"+"<td >&nbsp;</td> <td bgcolor='#eeeeee'>&nbsp;"+ column4[j] +"</td>"+"<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column2[j] +"</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column5[j] +"&nbsp;</td>"+"<td bgcolor='#eeeeee' >&nbsp;"+ column6[j] +"</td> <td >&nbsp;</td> " +"<td bgcolor='#eeeeee'>&nbsp;"+ column7[j] +"</td>"+"<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column3[j] +"</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column8[j] +"</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column9[j] +"</td>"+ "</tr>";
+	}
+	
+	//$("#tablecontent").empty();
+	document.getElementById('tablecontent').innerHTML = outputStringRow;	
+	document.getElementById('givenCodeDescription').innerHTML = "<b>Description of code "+ givenCode+": </b>"+cosine_codeDescription[index];	
+	
+	table.style.display = "block";	// *****************************  make display: block (means: visible)		
+	document.getElementById('data_loading_message').innerHTML = "";
+}
+
+
+function showHiddenContent(){
+	/*
+	var url = window.location.pathname;
+	var path_name = url.substring(0, url.lastIndexOf('/')+1);
+	alert(path_name);
+	*/
+	
+	var radios = document.getElementsByName('selected_functions');
+	if( radios[0].checked) {
+		// cosine similarity is checked. Show all types of code (diag, procedure, hcpcs)
+		// 'codelistItems' value is not necessary.
+		document.getElementById('codelistItems').options.selectedIndex = 0;
+		loadCosineSimilarityData();
+		
+	}else if( radios[1].checked){
+		// pmi is checked. Show all types of code (diag, procedure, hcpcs)
+		// 'codelistItems' value is not necessary.
+		document.getElementById('codelistItems').options.selectedIndex = 0;
+		loadPMIsimilarityData();
+	}else if( radios[2].checked){
+	    // both is checked. Show only one types of code (diag, procedure, hcpcs)
+		selectedCodeIndex = document.getElementById('codelistItems').value;
+		if( selectedCodeIndex ==0){ // Zero means no code_type have selected
+			alert("Please, select one code type");
+		}
+		else{
+			//document.getElementById('tablecontent').innerHTML = "<tr> <td id='row1'>Please, wait.</td><td id='row2'> Data is loading.  If it takes long time, then refresh the page and try again.</td><td id='row3'></td> </tr>";	
+			loadBoth(selectedCodeIndex);
+		}
+	}
+	else{
+		alert("Please, select one function");
+	}
+}
+
+function loadBoth(code_choice){
+
+	var table= document.getElementById( tableTag );
+	var givenCode = document.getElementById("codevalue").value;
+	var n = givenCode.indexOf("-");          // Deleting code description from Textfield
+	if (n>0)
+		givenCode = givenCode.slice(0, n);
+	
+	
+	var codeToShow = document.getElementById("listItems").value;
+	
+	// ******************** loading data from csv file using path: code_description_file
+	var csvAnotherRequest = new Request({
+		url: code_description_file,
+		onSuccess:function(result){
+		var a= result.split("\n");
+		
+		
+		var SIZE = a.length-1;
+		var index = -1;			
+		var code_dictionary = {};
+		var code_to_icd_dict = {};
+				
+		// *************************** inserting data into variables
+		for (var j = 0; j < SIZE ; j++) {
+				var lineValue = a[j];
+				var tem2 = lineValue.split(",");
+				
+				var icd_code = tem2[1].substring(2);		// cutting prefix (i.e. 'd_')
+				if (icd_code==""){
+					icd_code= tem2[0].substring(2);         // taking the original code
+				}
+				code_to_icd_dict[tem2[0] ] = icd_code;
+				code_dictionary[ tem2[0] ] = tem2[2];
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("'", "");
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("//", "");
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("'", "");
+				
+				
+				if (tem2[0] == givenCode)
+					index = j;	
+		}
+		// ****************************************************
+		// ****************************************************
+		if( index ==-1){
+			document.getElementById('tablecontent').innerHTML = "";	
+			document.getElementById('givenCodeDescription').innerHTML = "";
+			alert("Sorry, the given code is not in our dataset. Please, try again");
+			return;	
+		}
+		// *************  Reading PMI values ******************
+		var counter1 =0;
+		
+		var column1 = new Array(codeToShow);	// initializing table column values
+		var column2 = new Array(codeToShow);
+		var column3 = new Array(codeToShow);
+		var column4 = new Array(codeToShow);
+		var column5 = new Array(codeToShow);
+		var column6 = new Array(codeToShow);
+		
+		var icd_column_pmi = new Array(codeToShow);
+		var icd_column1 = new Array(codeToShow);
+		
+		for (var k = 0; k< codeToShow ; k++){
+		  column1[k] = "";	// initializing table column values
+		  column2[k] = "";
+		  column3[k] = "No more data";
+		  column4[k] = "";
+		  column5[k] = "";
+		  column6[k] = "No more data";
+		
+		  icd_column1[k]= "";
+		  icd_column_pmi[k] = "";
+		}
+		
+		var csvRequest = new Request({
+			url: pmi_file,
+			onSuccess:function(result2){
+			var b = result2.split("\n");
+			var SIZE_2 =  b.length;
+			var line;
+			
+			// *************************** searching code from PMI table
+			for (var j = 0; j < SIZE_2 ; j++) {
+					var lineValue = b[j];
+					var tem2 = lineValue.split(",");
+					if (tem2[0] == givenCode){
+						line = b[j];  //getting the given code line or row
+						index = j;	
+						break;
+					}
+			}
+			var tem = line.split(",");
+			// first word is given word
+			for (var k = 1; k< tem.length- 1 ; k++){ // last character is new line
+			
+				var similarCode = tem[k];
+				
+				if (counter1 >= codeToShow)
+					break;
+				// *******************  Finding code type **********************
+				if( similarCode.startsWith("d_") && counter1 < codeToShow && code_choice == 1){
+					column1[counter1]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column3[counter1]= c_description;
+					
+					icd_column_pmi[counter1] = code_to_icd_dict[ similarCode ];
+					k++;													// reading next column value
+					column2[counter1]= tem[k].substring(0, 4); 								// reading PMI value
+					counter1++;		
+				}
+				else if(similarCode.startsWith("p_") && counter1 < codeToShow && code_choice == 2){
+					column1[counter1]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column3[counter1]= c_description;
+					icd_column_pmi[counter1] = code_to_icd_dict[ similarCode ];
+					k++;
+					column2[counter1]= tem[k].substring(0, 4);
+					counter1++;
+				}
+				else if (similarCode.startsWith("h_") && counter1 < codeToShow && code_choice == 3) {
+					column1[counter1]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column3[counter1]= c_description;
+					icd_column_pmi[counter1] = code_to_icd_dict[ similarCode ];
+					k++;
+					column2[counter1]= tem[k].substring(0, 4);
+					counter1++;
+				}
+				else{		// Anyone type is equal to codeToShow, but anyone type is still less than codeToShow
+					k++;    // skipping
+				}
+			}// end of file reading.
+			
+			// ********************************* PMI read done
+			
+			
+			
+		// *************  Reading Cosine values ******************
+		// *******************************************************
+		var index = -1;
+			
+		// *************************** inserting data into variables
+		for (var j = 0; j < cosine_row_num ; j++) {
+				if ( cosine_code[j] == givenCode){
+					index = j;		
+					break;
+				}		
+		}
+		// ****************************************************
+		if( index ==-1){
+			document.getElementById('tablecontent').innerHTML = "";	
+			document.getElementById('givenCodeDescription').innerHTML = "";
+			alert("Sorry, the given code is not in our dataset. Please, try again");
+			return;
+		}
+			
+		var cosineSimilarityList = [];	
+		// **************************  Calculating cosineSimilarity
+		for (var j= 0; j<cosine_row_num; j++){
+			 cosineSimilarityList.push({
+				Column1: cosine_code[j],
+				Column2: vecDotProduct(cosine_codevector[j], cosine_codevector[index]),
+				Column3: cosine_codeDescription[j],
+				Column4: cosine_icd_code[j].substring(2)
+			});
+			
+		}
+			
+		// ***************************  Sorting values
+		var sort_by = function(field, reverse, primer){
+		   var key = primer ?
+			   function(x) {return primer(x[field])} :
+			   function(x) {return x[field]};
+
+		   reverse = !reverse ? 1 : -1;
+
+		   return function (a, b) {
+			   return a = key(a), b = key(b), reverse * ((a > b) - (b > a));
+			 }
+		}
+		// Sort by high to low
+		cosineSimilarityList.sort(sort_by('Column2', true, parseFloat));	
+			
+		counter1 = 0;
+		for (var j=1 ; j< cosine_row_num ; j++){ // Ignoring first. Because, given code vs given code Cosine Similarity is high
+			var simimilarCode = cosineSimilarityList[j].Column1;
+			if (counter1 >= codeToShow)
+				break;
+			
+			if( simimilarCode.startsWith("d_") && counter1 < codeToShow && code_choice == 1){
+				column4[counter1]= simimilarCode;
+				column5[counter1]= cosineSimilarityList[j].Column2.toFixed(3);  // taking first three digits
+				column6[counter1]= cosineSimilarityList[j].Column3;
+				icd_column1[counter1] = cosineSimilarityList[j].Column4;
+				counter1++;
+								
+				
+			}
+			else if(simimilarCode.startsWith("p_") && counter1 < codeToShow && code_choice == 2 ){
+				column4[counter1]= simimilarCode;
+				column5[counter1]= cosineSimilarityList[j].Column2.toFixed(3);
+				column6[counter1]= cosineSimilarityList[j].Column3;
+				icd_column1[counter1] = cosineSimilarityList[j].Column4;
+				counter1++;
+			}
+			else if (simimilarCode.startsWith("h_") && counter1 < codeToShow && code_choice == 3) {
+				column4[counter1]= simimilarCode;			
+				column5[counter1]= cosineSimilarityList[j].Column2.toFixed(3);
+				column6[counter1]= cosineSimilarityList[j].Column3;
+				icd_column1[counter1] = cosineSimilarityList[j].Column4;
+				counter1++;
+				//console.log("here: "+ simimilarCode +" "+outputStringRow3	);
+			}
+		}
+			
+		
+		var outputStringRow = "	<tr bgcolor='#80dd80'> <th style='width: 80px;' >&nbsp;Code&nbsp;</th>  <th style='width: 60px;'>&nbsp;ICD-9&nbsp;</br>&nbsp;code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80'>&nbsp;PMI</br>&nbsp;value&nbsp;</th> <th style='width: 300px;' bgcolor='#80dd80'>&nbsp;Code Description</th>  <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th>  <th style='width: 80px;' >&nbsp;Code&nbsp;</th>   <th style='width: 60px;'>&nbsp;ICD-9&nbsp;</br>&nbsp;code&nbsp;</th>  <th style='width: 60px;'>&nbsp;Word2vec&nbsp;</br>&nbsp;Cosine&nbsp;</br>&nbsp;Similarity&nbsp;</th><th style='width: 300px;'>&nbsp;Code Description</th></tr>";
+		if(code_choice==3){ // calling HCPCS code, we need to change table header
+			outputStringRow = "	<tr bgcolor='#80dd80'> <th style='width: 80px;' >&nbsp;Code&nbsp;</th>  <th style='width: 60px;'>&nbsp;Expanded&nbsp;</br>&nbsp;code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80'>&nbsp;PMI</br>&nbsp;value&nbsp;</th> <th style='width: 300px;' bgcolor='#80dd80'>&nbsp;Code Description</th>  <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th>  <th style='width: 80px;' >&nbsp;Code&nbsp;</th>   <th style='width: 60px;'>&nbsp;Expanded&nbsp;</br>&nbsp;code&nbsp;</th>  <th style='width: 60px;'>&nbsp;Word2vec&nbsp;</br>&nbsp;Cosine&nbsp;</br>&nbsp;Similarity&nbsp;</th><th style='width: 300px;'>&nbsp;Code Description</th></tr>";
+		}
+		
+		for (var j=0 ; j< codeToShow ; j++){
+			outputStringRow= outputStringRow+ "<tr style='outline: thin solid'>"+ "<td bgcolor='#eeeeee'>&nbsp;"+ column1[j] +"&nbsp;</td>" + "<td bgcolor='#eeeeee'>"+icd_column_pmi[j]+ "</td> <td bgcolor='#eeeeee'>&nbsp;"+ column2[j] +"&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column3[j] +"&nbsp;</td> <td>&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column4[j] + "</td>"+"<td bgcolor='#eeeeee'>"+ icd_column1[j] +"</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column5[j] +"&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column6[j] +"</td> </tr>";
+			
+		}
+		
+		//$("#tablecontent").empty();   // it is not necessary to clear previous data
+		document.getElementById('tablecontent').innerHTML = outputStringRow;	
+		document.getElementById('givenCodeDescription').innerHTML = "<b>Description of code "+ givenCode+": </b>"+cosine_codeDescription[index];	
+		document.getElementById('data_loading_message').innerHTML = "";
+						
+		}
+		}).send();
+		// *****************	
+		// *****************
+	}
+	}).send();
+	//**********************
+	table.style.display = "block";	// *****************************  make display: block (means: visible)
+	document.getElementById('data_loading_message').innerHTML = "";
+
+}
+
+function loadPMIsimilarityData(){
+
+	
+	var table= document.getElementById( tableTag );
+	var givenCode = document.getElementById("codevalue").value;
+	var n = givenCode.indexOf("-");          // Deleting code description from Textfield
+	if (n>0)
+		givenCode = givenCode.slice(0, n);
+	
+	
+	var codeToShow = document.getElementById("listItems").value;
+	// ******************** loading data from csv file using path: code_description_file
+	var csvAnotherRequest = new Request({
+		url: code_description_file,
+		onSuccess:function(result){
+		var a= result.split("\n");
+		
+		
+		var SIZE = a.length-1;
+	
+		var index = -1;			
+		var code_dictionary = {};
+		var code_to_icd_dict = {};
+			
+		// *************************** inserting data into variables
+		for (var j = 0; j < SIZE ; j++) {
+				var lineValue = a[j];
+				var tem2 = lineValue.split(",");
+				
+				var icd_code = tem2[1].substring(2);		// cutting prefix (i.e. 'd_')
+				if (icd_code==""){
+					icd_code= tem2[0].substring(2);         // taking the original code, if icd code is not found
+				}
+				code_to_icd_dict[tem2[0] ] = icd_code;
+				code_dictionary[ tem2[0] ] = tem2[2];
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("'", "");
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("//", "");
+				code_dictionary[ tem2[0] ] = code_dictionary[ tem2[0] ].replace("'", "");
+				
+				if (tem2[0] == givenCode){
+					index = j;			
+					}
+		}
+		// ****************************************************
+		if( index ==-1){
+			document.getElementById('tablecontent').innerHTML = "";	
+			document.getElementById('givenCodeDescription').innerHTML = "";
+			alert("Sorry, the given code is not in our dataset. Please, try again");
+			return;	
+		}
+		
+		var counter1 =0;
+		var counter2 =0;
+		var counter3 =0;
+		
+		var column1 = new Array(codeToShow);	// initializing table column values
+		var column2 = new Array(codeToShow);
+		var column3 = new Array(codeToShow);
+		var column4 = new Array(codeToShow);
+		var column5 = new Array(codeToShow);
+		var column6 = new Array(codeToShow);
+		
+		var column7 = new Array(codeToShow);
+		var column8 = new Array(codeToShow);
+		var column9 = new Array(codeToShow);
+		
+		var icd_column1_pmi = new Array(codeToShow);
+		var icd_column2_pmi = new Array(codeToShow);
+		var icd_column3_pmi = new Array(codeToShow);
+	
+		for (var i = 0; i< codeToShow; i++){
+			column1[i] = "";
+			column2[i] = "";
+			column3[i] = "No more data";
+			column4[i] = "";
+			column5[i] = "";
+			column6[i] = "No more data";
+			column7[i] = "";
+			column8[i] = "";
+			column9[i] = "No more data";
+			icd_column1_pmi[i] ="";
+			icd_column2_pmi[i] ="";
+			icd_column3_pmi[i] ="";
+		}
+		
+		var csvRequest = new Request({
+			url: pmi_file,
+			onSuccess:function(result2){
+			var b = result2.split("\n");
+			var SIZE_2 =  b.length;
+			var line;
+			index=-1;
+			
+			// *************************** searching code from PMI table
+			for (var j = 0; j < SIZE_2 ; j++) {
+					var lineValue = b[j];
+					var tem2 = lineValue.split(",");
+					if (tem2[0] == givenCode){
+						line = b[j];  //getting the given code line or row
+						index = j;	
+						break;
+					}
+			}
+			// ****************************************************
+			if( index ==-1){
+				document.getElementById('tablecontent').innerHTML = "";	
+				document.getElementById('givenCodeDescription').innerHTML = "";
+				alert("Sorry, the given code is invalid. Please, try again");
+				return;	
+			}
+			
+			//var line = b[ index ];			// Taking info of the index
+			
+			var tem = line.split(",");
+			// first word is given word
+			for (var k = 1; k< tem.length- 1 ; k++){ // last character is new line
+			
+				var similarCode = tem[k]; // similar code of given code
+				
+				
+				if (counter1 >= codeToShow && counter2 >= codeToShow && counter3 >= codeToShow)
+					break;
+				// *******************  Finding code type **********************
+				if( similarCode.startsWith("d_") && counter1 < codeToShow){
+					column1[counter1]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column3[counter1]= c_description;
+					
+					icd_column1_pmi[counter1] = code_to_icd_dict[ similarCode ];
+					k++;													// reading next column value
+					column2[counter1]= tem[k].substring(0, 4); 		        // taking PMI value						// reading PMI value
+					counter1++;		
+				}
+				else if(similarCode.startsWith("p_") && counter2 < codeToShow ){
+					column4[counter2]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column6[counter2]= c_description;
+					
+					icd_column2_pmi[counter2] = code_to_icd_dict[ similarCode ];
+					k++;
+					column5[counter2]= tem[k].substring(0, 4);
+					counter2++;
+				}
+				else if (similarCode.startsWith("h_") && counter3 < codeToShow) {
+					column7[counter3]= similarCode;
+					var c_description ="Description is not available";
+					if(similarCode in code_dictionary ){
+					    c_description = code_dictionary [ similarCode ].replace("u'//", "");
+					}
+					column9[counter3]= c_description;
+					icd_column3_pmi[counter3] = code_to_icd_dict[ similarCode ];
+					k++;
+					column8[counter3]= tem[k].substring(0, 4);
+					counter3++;
+				}
+				else{		// Anyone type is equal to codeToShow, but anyone type is still less than codeToShow
+					k++;    // skipping
+				}
+			}// end of file reading.
+			
+			var outputStringRow = "	<tr bgcolor='#80dd80' > <th style='width: 80px;' >&nbsp;Code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;ICD-9<br>&nbsp;code&nbsp;</th>  <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;PMI<br>&nbsp;value&nbsp;</th> <th style='width: 230px;' bgcolor='#80dd80' >Diagnosis Code Description</th> <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th>   <th style='width: 80px;'>&nbsp;Code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;ICD-9<br>&nbsp;code&nbsp;</th> <th style='width: 60px;' >&nbsp;PMI<br>&nbsp;value&nbsp;</th><th style='width: 230px;' >Procedure Code Description</th> <th style='width: 1px;' bgcolor='#ffffff'>&nbsp;</th>   <th style='width: 80px;' bgcolor='#80dd80'>&nbsp;Code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;HCPCS<br>&nbsp;code&nbsp;</th> <th style='width: 60px;' bgcolor='#80dd80' >&nbsp;PMI<br>&nbsp;value&nbsp;</th><th style='width: 230px;' bgcolor='#80dd80' >HCPCS Code Description</th></tr>";
+			for (var j=0 ; j< codeToShow ; j++){
+				outputStringRow= outputStringRow+ "<tr style='outline: thin solid'>"+ "<td  bgcolor='#eeeeee'>&nbsp;"+ column1[j] +"&nbsp;</td>" + "<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column1_pmi[j]+"</td>"+ "<td  bgcolor='#eeeeee'>&nbsp;"+ column2[j] +"</td>"+"<td  bgcolor='#eeeeee'>&nbsp;"+ column3[j] +"&nbsp;</td> <td >&nbsp;</td>";
+				outputStringRow+="<td bgcolor='#eeeeee'>&nbsp;"+ column4[j] +"</td>" + "<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column2_pmi[j]+"</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column5[j] +"&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column6[j] +"</td> <td>&nbsp; </td> <td bgcolor='#eeeeee'>&nbsp;"+ column7[j] +"</td>" + "<td  bgcolor='#eeeeee'>&nbsp;"+ icd_column3_pmi[j]+"&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column8[j] +"&nbsp;</td>"+"<td bgcolor='#eeeeee'>&nbsp;"+ column9[j] +"</td> </tr>";				
+			}
+			
+			//$("#tablecontent").empty();   // it is not necessary to clear previous data
+			document.getElementById('tablecontent').innerHTML = outputStringRow;	
+			document.getElementById('givenCodeDescription').innerHTML = "<b>Description of code "+ givenCode+": </b>"+ code_dictionary[ givenCode ].replace("u'//", "");	
+			
+			}
+			}).send();
+			// *****************	
+			// *****************
+		}
+		}).send();
+		//**********************
+	table.style.display = "block";	// *****************************  make display: block (means: visible)
+	document.getElementById('data_loading_message').innerHTML = "";
+}
+
+
+/*
+// We set hints in textField.
+// When user clicks on the textField, we clear the text.
+function clearText(){
+    document.getElementById('codevalue').value = "";
+}
+*/
+
+function clickedBoth(){
+	document.getElementById("codelistItems").disabled=false;
+}
+function clickedSingle(){
+	document.getElementById("codelistItems").disabled= true;
+}
+
+</script>
+		
+	
+</head>
+
+<body>
+<!-- START CONTENT -->
+<div id="content">
+
+<h1> Medicare code similarity software</h1>
+	<p><b>How to use:</b> Type your diagnosis or procedure code with a prefix value. The prefixes are  'd_', 'p_' and 'h_' for diagnosis, procedure and HCPCS codes, respectively. </br>
+	For example, if you want to search a diagnosis code, 174.9 "Malignant neoplasm of breast (female), unspecified", then you should remove the period ".", add prefix "d_", and type 'd_1749'
+	</p>
+	<table>
+	<tr><td> <input type="text" id="codevalue" size="30"> </td>
+	</tr>
+	<tr>
+	    <td>Select top <select id="listItems" >
+					  <option value="10" selected="selected">10</option>
+					  <option value="20" >15</option>
+					  <option value="20" >20</option>
+					  <option value="20" >25</option>
+					  <option value="30">30</option>
+					</select> similar codes.
+	
+	
+	    Select function: <input type="radio" name="selected_functions" value="cosine" onclick="clickedSingle()"> Cosine similarity <input type="radio" name="selected_functions" value="pmi" onclick="clickedSingle()"> PMI value <input type="radio" name="selected_functions" value="both" onclick="clickedBoth()"> (both functions
+	    <select id="codelistItems" >
+					  <option value="0" selected="selected">code types</option>
+					  <option value="1">ICD-9 Diagnosis</option>
+					  <option value="2">ICD-9 Procedure</option>
+					  <option value="3">HCPCS</option>
+		</select>)
+
+	    </td>
+    <tr><td><button onclick="showHiddenContent()"> Submit</button></td></tr>
+	</tr>
+	</table>
+		<script>
+
+		var options = {
+			url: "js/code_name.json",
+			getValue: "code",
+			
+			list: { match: {enabled: true}}
+			
+		};
+		//var tem = ["abcd a", "ba d", "acd d", "cae ", "bb d"];
+		//they needed json file format
+		
+		$("#codevalue").easyAutocomplete( options );
+		//console.log(options);
+		document.getElementById("codelistItems").disabled= true;
+		</script>
+
+		
+	<p id='data_loading_message'> Data is loading ... Thank you for your patience.</p>
+	<p id="givenCodeDescription">
+	</p>
+
+	<table id='codelist' >
+	<tbody id='tablecontent'>
+		<tr> <td id='row1'> </td><td id='row2'> </td><td id='row3'>   </td> </tr>
+	</tbody>	
+	</table>	
+	
+	<!--   ****************************************** -->
+	<p> </br></br> </p>
+
+</div>
+
+<!-- END CONTENT -->
+
+
+</body></html>	
