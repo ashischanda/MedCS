@@ -36,7 +36,8 @@ Other files:
 
 - synthetic_claim_data.csv	% this is the claims data set in a desired csv format. You would need to replace this data set with your own data set written in the same tabular format. 
 
- 
+
+
 
 STEP 1 (pre-processing synthetic_claim_data.csv file): 
 
@@ -54,7 +55,8 @@ After it is finished, it will ask you to press any button to finish.
 
 At this time, a file "document” is generated in the same folder.  
 
-  
+
+
 
 STEP 2 (train a model):  
 
@@ -74,7 +76,8 @@ Then it will start to train the model. After training is finished, code_vectors_
 
 After it is finished, it will ask you to press any button to finish. 
 
-  
+
+
 
 STEP 3 (post-processing):  
 
@@ -98,7 +101,8 @@ This step creates 2 files:
 
 If you finished STEP 2 and STEP 3 before, you can directly do STEP 4 and 5 to load your trained model. 
 
-  
+
+
 
 STEP 4 (activate the code_explorer):  
 
@@ -140,7 +144,7 @@ In this example, the medicare_code_similarity folder is in ‘C’ drive. After 
 
 - js directory 
 
-  
+
 
 STEP 5 (explore the codes from a browser):  
 
