@@ -1,8 +1,6 @@
 # MedCS: Medicare Code Similarity software 
 
-(for Windows 7 or above) 
-
-  
+##(for Windows 7 or above) 
 
 This software allows you to train word2vec model on the medical claims data and to explore the similarities between the codes. 
 
