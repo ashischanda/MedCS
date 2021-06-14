@@ -40,7 +40,7 @@ Other files:
 
 
 ## STEP 1 (pre-processing synthetic_claim_data.csv file): 
-------------------------------------  
+
 
 The goal of this step is to convert the original csv file (synthetic_claim_data.csv) into the format needed for model training.  
 
@@ -58,7 +58,7 @@ At this time, a file "document” is generated in the same folder.
 
 
 ## STEP 2 (train a model):  
-------------------------------------  
+ 
 
 The goal of this step is to learn from the data how to represent codes as vectors using the word2vec algorithm.  
 
@@ -78,7 +78,7 @@ After it is finished, it will ask you to press any button to finish.
 
 
 ## STEP 3 (post-processing):  
-------------------------------------  
+
 
 The goal of this step is to generate three csv files from the trained word2vec model that store cosine similarity, pmi value and code dictionary index.  
 
@@ -102,7 +102,7 @@ If you finished STEP 2 and STEP 3 before, you can directly do STEP 4 and 5 to lo
 
 
 ## STEP 4 (activate the code_explorer):
-------------------------------------  
+ 
 
 The goal of this step is to set up a local-server on your computer that would enable browser to show code similarity results. The following are the instructions to install a local-sever on your computer. 
 
@@ -143,7 +143,7 @@ In this example, the medicare_code_similarity folder is in ‘C’ drive. After 
 
 
 ## STEP 5 (explore the codes from a browser):  
-------------------------------------  
+ 
 
 In this step, you will click on the “code_explorer” folder in your opened browser. You will see an interface where you can give a medical code in the text field and press the "search code" button to see results. 
 
