@@ -20,8 +20,7 @@ Two executable files to train the word2vec model:
 
 - pre_processing.exe	% this file loads synthetic_claim_data.csv file (your input file) and produces “document” file 
 
-Note: To run our software, you need to download another executable file, "word2vec_train.exe" from this link: (https://github.com/ashischanda/MedCS/releases/tag/v1.0) 
-word2vec_train.exe	file loads “document” file and produces code2rawcode_file.csv, code_vectors_file.csv and “model” files. 
+Note: To run our software, you need to download another executable file, "word2vec_train.exe" from this link: (https://github.com/ashischanda/MedCS/releases/tag/v1.0). The word2vec_train.exe	file loads “document” file and produces code2rawcode_file.csv, code_vectors_file.csv and “model” files. 
 
 - post_procesing.exe	% this file loads “model” file and produces code_index.csv, code_pmi.csv, code_vectors_file.csv files. 
 
