@@ -16,15 +16,14 @@ After you open the folder medicare_code_similarity, you will see:
 
   
 
-Three executable files to train the word2vec model: 
+Two executable files to train the word2vec model: 
 
 - pre_processing.exe	% this file loads synthetic_claim_data.csv file (your input file) and produces “document” file 
 
-- word2vec_train.exe	% this file loads “document” file and produces code2rawcode_file.csv, code_vectors_file.csv  and “model” files. 
+Note: To run our software, you need to download another executable file, "word2vec_train.exe" from this link: (https://github.com/ashischanda/MedCS/releases/tag/v1.0) 
+word2vec_train.exe	file loads “document” file and produces code2rawcode_file.csv, code_vectors_file.csv and “model” files. 
 
-- post_procesing.exe	% this file loads “model” file and produces code_index.csv, code_pmi.csv,                                                                              code_vectors_file.csv files. 
-
-  
+- post_procesing.exe	% this file loads “model” file and produces code_index.csv, code_pmi.csv, code_vectors_file.csv files. 
 
 Other files: 
 
@@ -35,6 +34,8 @@ Other files:
 - hcpcsdict.csv	% this is procedure code description in Healthcare Common Procedure Coding System (HCPCS) format, we need it to show the code description. You can replace it with the hcpcs codes that correspond to your data. 
 
 - synthetic_claim_data.csv	% this is the claims data set in a desired csv format. You would need to replace this data set with your own data set written in the same tabular format. 
+
+
 
 
 
